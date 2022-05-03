@@ -162,6 +162,9 @@ class Leaf(Rod):
     """
 
     value: Any
+    
+    def __len__(self) -> int:
+        return 1
 
     def __tree__(self, offset: str) -> str:
         """Build visual tree
@@ -227,6 +230,9 @@ class Node(Rod):
 
     left: Rod
     right: Rod
+    
+    def __len__(self) -> int:
+        return self.left.__len__() + self.right.__len__()
 
     def __tree__(self, offset: str) -> str:
         """Spread tree build function
@@ -409,7 +415,7 @@ def huff_tree(frequency_map: dict[Hashable, int]) -> Node:
     heapify(tree)
     left = heappop(tree)
     for _ in range(2, lenght):
-        left = heappushpop(tree, left + heappop(tree))
+        left = heappushpop(tree, left + heappop(tree)) # just an optimization
     return left + tree[0]
 
 
@@ -442,41 +448,6 @@ if __name__ == "__main__":
             return huff_tree(frequency_map(text))
 
     root = huff_tree(frequency_map("Wikipedia"))
-    def bench():
-        layers = root.layers
+    print(len(root.left))
 
-    print(f"Bench took approximatly {timeit(bench, number=100)} ms")
-
-    # LEVEL = 1
-
-    # def encode_level():
-    #     with open("tour_du_monde.txt") as file:
-    #         decoded = file.read()
-    #     for _ in range(LEVEL):
-    #         root = huff_tree(frequency_map(decoded))
-    #         codemap = str(root.to_tuple()).encode(B_ENCODING)
-    #         decoded = len(codemap).to_bytes(B_CODEMAP, byteorder=B_ORDER) + codemap + root.code.encode(decoded)
-    #     with open("tour_du_monde_compressed.bin", 'wb') as file:
-    #         file.write(decoded)
-
-    # def decode_level():
-    #     for _ in range(LEVEL-1):
-    #         with open("tour_du_monde_compressed.bin", "rb+") as file:
-    #             encoded = file.read()
-    #             code_len = int.from_bytes(encoded[0:B_CODEMAP], byteorder=B_ORDER) + B_CODEMAP
-    #             codemap = CodeMap.from_tuple(eval(encoded[B_CODEMAP:code_len]))
-    #             file.truncate(0)
-    #             for v in codemap.decode(encoded, code_len):
-    #                 file.write(v)
-
-    #     with open("tour_du_monde_compressed.bin", "rb+") as file:
-    #         encoded = file.read()
-    #         code_len = int.from_bytes(encoded[0:B_CODEMAP], byteorder=B_ORDER) + B_CODEMAP
-    #         codemap = CodeMap.from_tuple(eval(encoded[B_CODEMAP:code_len]))
-    #         with open("tour_du_monde_uncompressed.txt", 'w') as file:
-    #             code_len = int.from_bytes(encoded[0:B_CODEMAP], byteorder=B_ORDER) + B_CODEMAP
-    #             codemap = CodeMap.from_tuple(eval(encoded[B_CODEMAP:code_len]))
-    #             file.write(''.join(v for v in codemap.decode(encoded, code_len)))
-
-    # print(f"Encoding with level {LEVEL} took approximatly {timeit(encode_level, number=1)} ms")
-    # print(f"Decoding with level {LEVEL} took approximatly {timeit(decode_level, number=1)} ms")
+    # print(f"Bench took approximatly {timeit(bench, number=100)} ms")
