@@ -414,6 +414,7 @@ def huff_tree(frequency_map: dict[Hashable, int]) -> Node:
 
 
 if __name__ == "__main__":
+    
     from timeit import timeit
 
     def encode():
