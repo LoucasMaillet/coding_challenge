@@ -16,7 +16,9 @@
 
 
 from __future__ import annotations
-from typing import Any, Generator, Iterable, Hashable
+from codecs import Codec, CodecInfo, IncrementalEncoder, IncrementalDecoder, register
+from collections.abc import Mapping
+from typing import Any, Callable, Generator, Iterable, Hashable
 from dataclasses import dataclass
 from heapq import heapify, heappop, heappushpop
 
@@ -26,7 +28,7 @@ __license__ = "GPL-3"
 __author__ = "Lucas Maillet"
 __credits__ = [__author__]
 __maintainer__ = __author__
-__email__ = "...@gmail.com"
+__email__ = "loucas.maillet.pro@gmail.com"
 __copyright__ = "Copyright 2022, 3 years before climate disaster"
 
 # For tree representation construction
@@ -39,12 +41,13 @@ DECO_VALUE = "\x1b[32m"
 EOL = '\n'
 END = "\x1b[0m"
 # For bytes manipulation
-B_CODEMAP = 4
-B_ORDER = "big"
-B_ENCODING = "utf-8"
+BYTES_CODEMAP = 2
+BYTES_ORDER = "big"
+BYTES_ENCODING = "utf-8"
+CODEC_NAME = "hfmn"
 
 
-class CodeMap:
+class CodeMap():
     """A CodeMap mapping an hufftree
 
     A simple implementation of encoding / decoding map: self[code]=value
@@ -89,7 +92,7 @@ class CodeMap:
         self.__encode_map[value] = code
         self.__decode_map[code] = value
 
-    def encode(self, decoded: Iterable) -> bytes:
+    def encode(self, stdin: Iterable) -> bytes:
         """Encode some Iterable
 
         Args:
@@ -99,28 +102,27 @@ class CodeMap:
             bytes: The encoded data
         """
         encoded = "1"  # need first bit to 1 to save the first 0 bits
-        for v in decoded:
+        for v in stdin:
             encoded += self.__encode_map[v]
         length = 1 + len(encoded)
         offset = 8 - length % 8
         encoded = '0' * offset + encoded
         length += offset
         # turn to bytes data
-        return int(encoded, 2).to_bytes(length // 8, byteorder=B_ORDER)
+        return int(encoded, 2).to_bytes(length // 8, byteorder=BYTES_ORDER)
 
-    def decode(self, encoded: bytes, offset_index: int = 0) -> Generator:
+    def decode(self, stdin: bytes) -> Generator:
         """Decode some bytes
 
         Args:
-            decoded (bytes): Some raw data
-            offset_index (int): Starting index of buffer (to avoid copy of bytes)
+            stdin (bytes): Some raw data
 
         Returns:
             Generator: yield value of each value
         """
-        encoded = format(int.from_bytes(encoded, byteorder=B_ORDER), "0b")  # convert to bit string
+        stdin = format(int.from_bytes(stdin, byteorder=BYTES_ORDER), "0b")  # convert to bit string
         b = ""  # bit buffer
-        for i in range(offset_index * 8 + 1, len(encoded)):  # start after the first security bit
+        for i in range(1, len(stdin)):  # start after the first security bit
             b += encoded[i]
             if b in self.__decode_map:
                 yield self.__decode_map[b]
@@ -128,7 +130,7 @@ class CodeMap:
 
 
 @dataclass(frozen=True, eq=False, repr=False)
-class Rod:
+class __TreePart:
     """A rot of the tree
 
     A part of the huffman tree, it can be either a Leaf or a Node,
@@ -137,21 +139,21 @@ class Rod:
 
     weight: int
 
-    def __add__(self, rod: Rod) -> Node:
+    def __add__(self, rod: __TreePart) -> Node:
         return Node(self.weight + rod.weight, self, rod)
 
-    def __lt__(self, rod: Rod) -> bool:
+    def __lt__(self, rod: __TreePart) -> bool:
         return self.weight < rod.weight
 
-    def __gt__(self, rod: Rod) -> bool:
+    def __gt__(self, rod: __TreePart) -> bool:
         return self.weight > rod.weight
 
-    def __eq__(self, rod: Rod) -> bool:
+    def __eq__(self, rod: __TreePart) -> bool:
         return self.weight == rod.weight
 
 
 @dataclass(frozen=True, repr=False)
-class Leaf(Rod):
+class Leaf(__TreePart):
     """A Leaf of the Huffman Tree
 
     Create a leaf of the Huffman Tree
@@ -162,7 +164,7 @@ class Leaf(Rod):
     """
 
     value: Any
-    
+
     def __len__(self) -> int:
         return 1
 
@@ -197,27 +199,27 @@ class Leaf(Rod):
 
         Args:
             layers (tuple): Layers hashmap
-            offset (int): Current offset from the root
+            offset (int): Current offset from the tree
         """
         layers[offset].append(self)
 
-    def __set_code__(self, codemap: CodeMap, code: str) -> None:
+    def __add_code__(self, callable_: Callable, code: str) -> None:
         """Set code
 
         Finally set the code coreesponding to the leaf
 
         Args:
-            codemap (CodeMap): The CodeMap mapping the tree
+            callable_ (Callable): Something to call like that: fn(code, value)
             code (str): The Leaf code
         """
-        codemap.add(code, self.value)
+        callable_(code, self.value)
 
     def to_tuple(self) -> Any:
         return self.value
 
 
 @dataclass(frozen=True, repr=False)
-class Node(Rod):
+class Node(__TreePart):
     """A Node of the Huffman Tree
 
     Create a node of the tree
@@ -228,9 +230,9 @@ class Node(Rod):
         right (Self | Leaf): The right part
     """
 
-    left: Rod
-    right: Rod
-    
+    left: __TreePart
+    right: __TreePart
+
     def __len__(self) -> int:
         return self.left.__len__() + self.right.__len__()
 
@@ -260,25 +262,25 @@ class Node(Rod):
         offset += 1
         return max(self.left.__depth__(offset), self.right.__depth__(offset))
 
-    def __set_code__(self, codemap: CodeMap, code: str) -> None:
-        """Set binary
+    def __add_code__(self, callable_: Callable, code: str) -> None:
+        """Set code
 
-        Spread the code generation in a CodeMap to his extension
+        Spread the code generation to the leafs
 
         Args:
-            code (CodeMap): The CodeMap mapping the tree
-            code (str): The binary already generated
+            callable_ (Callable): Something to call like that in the end: fn(code, value)
+            code (str): The code already generated
 
         """
-        self.left.__set_code__(codemap, f"{code}0")
-        self.right.__set_code__(codemap, f"{code}1")
+        self.left.__add_code__(callable_, f"{code}0")
+        self.right.__add_code__(callable_, f"{code}1")
 
     def __set_layer__(self, layers: list, offset: int):
         """Recursively fill the layers
 
         Args:
             layers (tuple): Layers hashmap
-            offset (int): Current offset from the root
+            offset (int): Current offset from the tree
         """
         layers[offset].append(self)
         offset += 1
@@ -287,7 +289,7 @@ class Node(Rod):
         self.left.__set_layer__(layers, offset)
         self.right.__set_layer__(layers, offset)
 
-    def __from_tuple__(value: tuple | Any) -> Rod:
+    def __from_tuple__(value: tuple | Any) -> __TreePart:
         """Recursively build a hufftree from a tuple
 
         Generate a hufftree based on a tuple
@@ -296,7 +298,7 @@ class Node(Rod):
             value (tuple | Any): The node / child
 
         Returns:
-            Rod: The corresponding part of the tree
+            __TreePart: The corresponding part of the tree
         """
         if isinstance(value, tuple):
             return Node.__from_tuple__(value[0]) + Node.__from_tuple__(value[1])
@@ -318,7 +320,7 @@ class Node(Rod):
     def layers(self) -> list[list]:
         """Get his layers
 
-        Generate layer from the root
+        Generate layer from the tree
 
         Returns:
             list: The layers looking like this: [[Node], [Node, Leaf], ...]
@@ -327,7 +329,7 @@ class Node(Rod):
         self.left.__set_layer__(layers, 1)
         self.right.__set_layer__(layers, 1)
         return layers
-    
+
     @property
     def tree(self) -> str:
         """A visual representation of the tree
@@ -347,7 +349,7 @@ class Node(Rod):
             CodeMap: His CodeMap
         """
         code = CodeMap()
-        self.__set_code__(code, '')
+        self.__add_code__(code.add, '')
         return code
 
     @staticmethod
@@ -405,7 +407,7 @@ def huff_tree(frequency_map: dict[Hashable, int]) -> Node:
         frequency_map (dict[Hashable, int]): Some Iterable occurences (at least 2)
 
     Returns:
-        Node: The root of the tree (wich is also a node)
+        Node: The tree of the tree (wich is also a node)
     """
     lenght = len(frequency_map)
     if lenght < 2:
@@ -415,39 +417,83 @@ def huff_tree(frequency_map: dict[Hashable, int]) -> Node:
     heapify(tree)
     left = heappop(tree)
     for _ in range(2, lenght):
-        left = heappushpop(tree, left + heappop(tree)) # just an optimization
+        left = heappushpop(tree, left + heappop(tree))  # just an optimization
     return left + tree[0]
 
 
-if __name__ == "__main__":
-    
-    from timeit import timeit
+# * --- Codecs setup here ---
 
-    def encode():
-        with open("tour_du_monde.txt") as file:
-            text = file.read()
-            root = huff_tree(frequency_map(text))
-            codemap = str(root.to_tuple()).encode(B_ENCODING)
-            with open("tour_du_monde_compressed.bin", 'wb') as file:
-                file.write(len(codemap).to_bytes(B_CODEMAP, byteorder=B_ORDER) + codemap + root.code.encode(text))
+def __encode__(stdin: str) -> bytes:
+    tree = huff_tree(frequency_map(stdin))
+    tuple_tree = str(tree.to_tuple()).encode(BYTES_ENCODING)
+    encode_map = {}
 
-    def decode():
-        with open("tour_du_monde_compressed.bin", "rb") as file:
-            encoded = file.read()
-            code_len = int.from_bytes(encoded[0:B_CODEMAP], byteorder=B_ORDER) + B_CODEMAP
-            codemap = CodeMap.from_tuple(eval(encoded[B_CODEMAP:code_len]))
-            with open("tour_du_monde_uncompressed.txt", 'w') as file:
-                file.write(''.join(v for v in codemap.decode(encoded, code_len)))
+    def __find_code__(code: str, value: Any) -> None:
+        encode_map[value] = code
 
-    # print(f"Encoding took approximatly {timeit(encode, number=1)} ms")
-    #print(f"Decoding took approximatly {timeit(decode, number=1)} ms")
+    tree.__add_code__(__find_code__, '')
+    encoded = "1"  # need first bit to 1 to save the first 0 bits
 
-    def bench():
-        with open("tour_du_monde.txt") as file:
-            text = file.read()
-            return huff_tree(frequency_map(text))
+    for v in stdin:
+        encoded += encode_map[v]
 
-    root = huff_tree(frequency_map("Wikipedia"))
-    print(len(root.left))
+    length = 1 + len(encoded)
+    offset = 8 - length % 8
+    encoded = '0' * offset + encoded
+    length += offset
+    return len(tuple_tree).to_bytes(BYTES_CODEMAP, byteorder=BYTES_ORDER) + tuple_tree + int(encoded, 2).to_bytes(length // 8, byteorder=BYTES_ORDER)
 
-    # print(f"Bench took approximatly {timeit(bench, number=100)} ms")
+
+def __decode__(stdin: bytes) -> str:
+    code_len = int.from_bytes(stdin[0:BYTES_CODEMAP], byteorder=BYTES_ORDER) + BYTES_CODEMAP
+    decode_map = {}
+
+    def __find_code__(value: Any | tuple, code: str) -> None:
+
+        if isinstance(value, tuple):
+            __find_code__(value[0], f"{code}0")
+            __find_code__(value[1], f"{code}1")
+        else:
+            decode_map[code] = value
+
+    tuple_ = eval(stdin[BYTES_CODEMAP:code_len])
+    __find_code__(tuple_[0], '0')
+    __find_code__(tuple_[1], '1')
+
+    stdin = format(int.from_bytes(stdin[code_len:], byteorder=BYTES_ORDER), "0b")  # convert to bit string
+    stdout = ""
+    b = ""  # bit buffer
+
+    for i in range(1, len(stdin)):  # start after the first security bit
+        b += stdin[i]
+        if b in decode_map:
+            stdout += decode_map[b]
+            b = ""
+    return stdout
+
+
+class __IncrementalEncoder__(IncrementalEncoder):
+
+    def encode(self, stdin: str) -> bytes:
+        return __encode__(stdin)
+
+
+class __IncrementalDecoder__(IncrementalDecoder):
+
+    def decode(self, stdin: bytes, final: bool) -> str:
+        return __decode__(stdin)
+
+
+def __codec__(encoding: str) -> CodecInfo | None:
+    if encoding == CODEC_NAME:
+        return CodecInfo(
+            name=CODEC_NAME,
+            encode=lambda stdin: (__encode__(stdin), 0),
+            decode=lambda stdin: (__decode__(stdin), 0),
+            incrementalencoder=__IncrementalEncoder__,
+            incrementaldecoder=__IncrementalDecoder__
+        )
+    return None
+
+
+register(__codec__)
