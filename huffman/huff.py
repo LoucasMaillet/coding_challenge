@@ -17,7 +17,6 @@
 
 from __future__ import annotations
 from codecs import Codec, CodecInfo, IncrementalEncoder, IncrementalDecoder, register
-from collections.abc import Mapping
 from typing import Any, Callable, Generator, Iterable, Hashable
 from dataclasses import dataclass
 from heapq import heapify, heappop, heappushpop
@@ -44,12 +43,12 @@ END = "\x1b[0m"
 BYTES_CODEMAP = 2
 BYTES_ORDER = "big"
 BYTES_ENCODING = "utf-8"
+# For codecs
 CODEC_NAME = "hfmn"
 
 
 class CodeMap():
     """A CodeMap mapping an hufftree
-
     A simple implementation of encoding / decoding map: self[code]=value
     """
 
@@ -71,12 +70,9 @@ class CodeMap():
     @classmethod
     def from_tuple(cls, value: tuple) -> CodeMap:
         """Build a CodeMap from a tuple
-
         Generate a CodeMap based on a tuple
-
         Args:
             value (tuple): The tuple of an Huffman tree
-
         Returns:
             CodeMap: The CodeMap mapping the tuple
         """
@@ -94,10 +90,8 @@ class CodeMap():
 
     def encode(self, stdin: Iterable) -> bytes:
         """Encode some Iterable
-
         Args:
             decoded (Iterable): Some iterable data
-
         Returns:
             bytes: The encoded data
         """
@@ -113,10 +107,8 @@ class CodeMap():
 
     def decode(self, stdin: bytes) -> Generator:
         """Decode some bytes
-
         Args:
             stdin (bytes): Some raw data
-
         Returns:
             Generator: yield value of each value
         """
@@ -132,7 +124,6 @@ class CodeMap():
 @dataclass(frozen=True, eq=False, repr=False)
 class __TreePart:
     """A rot of the tree
-
     A part of the huffman tree, it can be either a Leaf or a Node,
     which are extended from here.
     """
@@ -155,9 +146,7 @@ class __TreePart:
 @dataclass(frozen=True, repr=False)
 class Leaf(__TreePart):
     """A Leaf of the Huffman Tree
-
     Create a leaf of the Huffman Tree
-
     Args:
         weight (int): The leaf weight
         value (Any): His corresponding value
@@ -170,12 +159,9 @@ class Leaf(__TreePart):
 
     def __tree__(self, offset: str) -> str:
         """Build visual tree
-
         Finnaly build a line of the leaf of the visual tree
-
         Args:
             offset (str): The line offset (which is not used in this case)
-
         Returns:
             str: The leaf line
         """
@@ -183,12 +169,9 @@ class Leaf(__TreePart):
 
     def __depth__(self, offset: int) -> int:
         """Found Depth
-
         Finally found the Leaf depth relative to a parent Node
-
         Args:
             offset (int): The relative depth to the parent Node
-
         Returns:
             int: The final relative depth to the parent Node
         """
@@ -196,7 +179,6 @@ class Leaf(__TreePart):
 
     def __set_layer__(self, layers: tuple, offset: int):
         """Finally fill the layers
-
         Args:
             layers (tuple): Layers hashmap
             offset (int): Current offset from the tree
@@ -205,9 +187,7 @@ class Leaf(__TreePart):
 
     def __add_code__(self, callable_: Callable, code: str) -> None:
         """Set code
-
         Finally set the code coreesponding to the leaf
-
         Args:
             callable_ (Callable): Something to call like that: fn(code, value)
             code (str): The Leaf code
@@ -221,9 +201,7 @@ class Leaf(__TreePart):
 @dataclass(frozen=True, repr=False)
 class Node(__TreePart):
     """A Node of the Huffman Tree
-
     Create a node of the tree
-
     Args:
         weight (int): The node weight
         left (Self | Leaf): The left part
@@ -238,12 +216,9 @@ class Node(__TreePart):
 
     def __tree__(self, offset: str) -> str:
         """Spread tree build function
-
         Spread the recurent function to build the visual tree
-
         Args:
             offset (str): The line offset
-
         Returns:
             str: The generated trunc
         """
@@ -252,10 +227,8 @@ class Node(__TreePart):
 
     def __depth__(self, offset: int) -> int:
         """Recursively found the maximal offset
-
         Args:
             offset (int): Parent offset
-
         Returns:
             int: His max offset
         """
@@ -264,20 +237,16 @@ class Node(__TreePart):
 
     def __add_code__(self, callable_: Callable, code: str) -> None:
         """Set code
-
         Spread the code generation to the leafs
-
         Args:
             callable_ (Callable): Something to call like that in the end: fn(code, value)
             code (str): The code already generated
-
         """
         self.left.__add_code__(callable_, f"{code}0")
         self.right.__add_code__(callable_, f"{code}1")
 
     def __set_layer__(self, layers: list, offset: int):
         """Recursively fill the layers
-
         Args:
             layers (tuple): Layers hashmap
             offset (int): Current offset from the tree
@@ -291,12 +260,9 @@ class Node(__TreePart):
 
     def __from_tuple__(value: tuple | Any) -> __TreePart:
         """Recursively build a hufftree from a tuple
-
         Generate a hufftree based on a tuple
-
         Args:
             value (tuple | Any): The node / child
-
         Returns:
             __TreePart: The corresponding part of the tree
         """
@@ -308,9 +274,7 @@ class Node(__TreePart):
     @property
     def depth(self) -> int:
         """Get his depth
-
         Found his maximal depth of his extensions
-
         Returns:
             int: His max depth
         """
@@ -319,9 +283,7 @@ class Node(__TreePart):
     @property
     def layers(self) -> list[list]:
         """Get his layers
-
         Generate layer from the tree
-
         Returns:
             list: The layers looking like this: [[Node], [Node, Leaf], ...]
         """
@@ -333,7 +295,6 @@ class Node(__TreePart):
     @property
     def tree(self) -> str:
         """A visual representation of the tree
-
         Returns:
             str: The representation
         """
@@ -342,9 +303,7 @@ class Node(__TreePart):
     @property
     def code(self) -> CodeMap:
         """Get his CodeMap
-
         Generate the CodeMap mapping the tree
-
         Returns:
             CodeMap: His CodeMap
         """
@@ -355,12 +314,9 @@ class Node(__TreePart):
     @staticmethod
     def from_tuple(value: tuple) -> Node:
         """Build a hufftree from a tuple
-
         Generate a hufftree based on a tuple
-
         Args:
             value (tuple): The tuple of some huffman tree
-
         Returns:
             Node: The corresponding part of the tree
         """
@@ -371,7 +327,6 @@ class Node(__TreePart):
 
     def to_tuple(self) -> tuple[tuple | Any]:
         """Convert to tuple
-
         Returns:
             tuple[tuple | Any]: The node in tuple format
         """
@@ -380,12 +335,9 @@ class Node(__TreePart):
 
 def frequency_map(iterable: Iterable[Hashable]) -> dict[Hashable, int]:
     """Get occurences of something iterable
-
     Loop over value and get value's frequency
-
     Args:
         value (Iterable[Hashable]): The object you want to analyse
-
     Returns:
         dict[Hashable, int]: The results in form of: { value: frequency, ... }
     """
@@ -400,12 +352,9 @@ def frequency_map(iterable: Iterable[Hashable]) -> dict[Hashable, int]:
 
 def huff_tree(frequency_map: dict[Hashable, int]) -> Node:
     """Generate Root of the Huffman Tree
-
     Build an simple Huffman tree based on Leafs & Nodes
-
     Args:
         frequency_map (dict[Hashable, int]): Some Iterable occurences (at least 2)
-
     Returns:
         Node: The tree of the tree (wich is also a node)
     """
@@ -432,16 +381,16 @@ def __encode__(stdin: str) -> bytes:
         encode_map[value] = code
 
     tree.__add_code__(__find_code__, '')
-    encoded = "1"  # need first bit to 1 to save the first 0 bits
+    stdout = "1"  # need first bit to 1 to save the first 0 bits
 
     for v in stdin:
-        encoded += encode_map[v]
+        stdout += encode_map[v]
 
-    length = 1 + len(encoded)
+    length = 1 + len(stdout)
     offset = 8 - length % 8
-    encoded = '0' * offset + encoded
+    encoded = '0' * offset + stdout
     length += offset
-    return len(tuple_tree).to_bytes(BYTES_CODEMAP, byteorder=BYTES_ORDER) + tuple_tree + int(encoded, 2).to_bytes(length // 8, byteorder=BYTES_ORDER)
+    return len(tuple_tree).to_bytes(BYTES_CODEMAP, byteorder=BYTES_ORDER) + tuple_tree + int(stdout, 2).to_bytes(length // 8, byteorder=BYTES_ORDER)
 
 
 def __decode__(stdin: bytes) -> str:
