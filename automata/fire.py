@@ -1,5 +1,5 @@
 #!/usr/bin/env python3.10
-#coding: utf-8
+# coding: utf-8
 
 
 from tkinter import Event, Frame, Canvas, Tk
@@ -46,7 +46,7 @@ class AutoMatrix(list):
         self._r_rows: range = range(rows)
         self._r_cols: range = range(cols)
         self._spreader: list = deque(maxlen=int(self.n_uninfected * .5)) # A top size of the potential spreader (sure overestimed)
-        for i, j in sample([(i, j) for j in range(self._cols) for i in range(self._rows)], self.n_uninfected):
+        for i, j in sample([(i, j) for j in self._r_cols for i in self._r_rows], self.n_uninfected):
             self[i][j] = CL_UNINFECTED
 
     def __repr__(self) -> str:
@@ -234,7 +234,7 @@ if __name__ == "__main__":
     frame = Frame()
     frame.pack()
     s = .5
-    f = 50
+    f = 25
     fm = AutoMatrixCanvas(frame,
                           1920*s,
                           1080*s,
