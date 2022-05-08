@@ -16,6 +16,7 @@
 
 
 from __future__ import annotations
+from collections import defaultdict
 from typing import Any, Generator, Iterable, Hashable
 from codecs import CodecInfo, IncrementalEncoder, IncrementalDecoder, register
 from heapq import heapify, heappop, heappushpop
@@ -393,13 +394,10 @@ def make_tree(iterable: Iterable[Hashable]) -> Node:
     Returns:
         Node: The root of the tree (wich is technicaly a node)
     """
-    entropy_map = {}
+    entropy_map = defaultdict(int)
 
-    for value in iterable:
-        if value in entropy_map:
-            entropy_map[value] += 1
-        else:
-            entropy_map[value] = 1
+    for k in iterable:
+        entropy_map[k] += 1
 
     lenght = len(entropy_map)
     if lenght < 2:
