@@ -133,7 +133,7 @@ class CodeMap():
 
 
 @dataclass(frozen=True, eq=False, repr=False)
-class __TreeMember:
+class __TreeFragment:
     """A rot of the tree
 
     A part of the huffman tree, it can be either a Leaf or a Node,
@@ -142,21 +142,21 @@ class __TreeMember:
 
     weight: int
 
-    def __add__(self, rod: __TreeMember) -> Node:
-        return Node(self.weight + rod.weight, self, rod)
+    def __add__(self, tree_frag: __TreeFragment) -> Node:
+        return Node(self.weight + tree_frag.weight, self, tree_frag)
 
-    def __lt__(self, rod: __TreeMember) -> bool:
-        return self.weight < rod.weight
+    def __lt__(self, tree_frag: __TreeFragment) -> bool:
+        return self.weight < tree_frag.weight
 
-    def __gt__(self, rod: __TreeMember) -> bool:
-        return self.weight > rod.weight
+    def __gt__(self, tree_frag: __TreeFragment) -> bool:
+        return self.weight > tree_frag.weight
 
-    def __eq__(self, rod: __TreeMember) -> bool:
-        return self.weight == rod.weight
+    def __eq__(self, tree_frag: __TreeFragment) -> bool:
+        return self.weight == tree_frag.weight
 
 
 @dataclass(frozen=True, repr=False)
-class Leaf(__TreeMember):
+class Leaf(__TreeFragment):
     """A Leaf of the Huffman Tree
 
     Create a leaf of the Huffman Tree
@@ -222,7 +222,7 @@ class Leaf(__TreeMember):
 
 
 @dataclass(frozen=True, repr=False)
-class Node(__TreeMember):
+class Node(__TreeFragment):
     """A Node of the Huffman Tree
 
     Create a node of the tree
@@ -233,8 +233,8 @@ class Node(__TreeMember):
         right (Self | Leaf): The right part
     """
 
-    left: __TreeMember
-    right: __TreeMember
+    left: __TreeFragment
+    right: __TreeFragment
 
     def __len__(self) -> int:
         return len(self.left) + len(self.right) + 1
@@ -291,7 +291,7 @@ class Node(__TreeMember):
         self.left.__layer__(layers, offset)
         self.right.__layer__(layers, offset)
 
-    def __from_tuple__(value: tuple | Any) -> __TreeMember:
+    def __from_tuple__(value: tuple | Any) -> __TreeFragment:
         """Recursively build a hufftree from a tuple
 
         Generate a hufftree based on a tuple
@@ -300,7 +300,7 @@ class Node(__TreeMember):
             value (tuple | Any): The node / child
 
         Returns:
-            __TreeMember: The corresponding part of the tree
+            __TreeFragment: The corresponding part of the tree
         """
         if isinstance(value, tuple):
             return Node.__from_tuple__(value[0]) + Node.__from_tuple__(value[1])
